@@ -36,12 +36,32 @@ def login(driver):
         EC.element_to_be_clickable((By.CLASS_NAME, "btn__primary--large.from__button--floating")))
     login_next_button.click()
 
-    time.sleep(10)
+    time.sleep(15)
 
 
-def scrape_companies(driver, companies_dict, max_pages=3):
+def search_url(driver):
+    # Edit the search URL here
+    driver.get(const.SEARCH_URL_Manu)
+
+
+def click_about_button(driver):
+    wait = WebDriverWait(driver, 15)
+    try:
+        about_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH,
+                                        "//a[@class='ember-view pv3 ph4 t-16 t-bold t-black--light org-page-navigation__item-anchor ']")))
+        about_button.click()
+        print("Clicked 'About' button")
+        time.sleep(10)
+    except Exception as e:
+        print(f"Failed to click About button. Error: {e}")
+        return False
+    return True
+
+
+def scrape_companies(driver, companies_dict, max_pages=10):
     wait = WebDriverWait(driver, 10)
-    driver.get(const.SEARCH_URL)
+    search_url(driver)
     wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'reusable-search__result-container')))
 
     page_count = 0
@@ -64,6 +84,11 @@ def scrape_companies(driver, companies_dict, max_pages=3):
                     company_name_element = company_soup.find('h1', {'class': 'org-top-card-summary__title'})
                     company_name = company_name_element.text.strip() if company_name_element else 'Not specified'
                     print(company_name)
+                    if company_name in companies_dict:
+                        print(f"Skipping already present company: {company_name}")
+                        driver.back()
+                        wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'reusable-search__result-container')))
+                        continue
 
                     industry_element = company_soup.find('div', {'class': 'org-top-card-summary-info-list__info-item'})
                     industry = industry_element.text.strip() if industry_element else 'Not specified'
@@ -72,19 +97,36 @@ def scrape_companies(driver, companies_dict, max_pages=3):
                     employee_element = company_soup.find("a", {'class': 'ember-view org-top-card-summary-info-list__info-item'})
                     no_of_employees = employee_element.text.strip() if employee_element else 'Not specified'
                     print(no_of_employees)
+                    time.sleep(5)
 
-                    if company_name in companies_dict:
-                        companies_dict[company_name] = {
-                            'Company Name': company_name,
-                            'Industry': industry,
-                            'No of Employees': no_of_employees,
-                        }
+                    if click_about_button(driver):
+                        # Get the company website from the About page
+                        about_soup = BeautifulSoup(driver.page_source, 'html.parser')
+                        website_element = about_soup.find('a', {'class': 'link-without-visited-state ember-view'})
+                        company_website = website_element['href'] if website_element else 'Not specified'
+                        print(company_website)
+                        location_element = about_soup.find('p', {'class': 't-14 t-black--light t-normal break-words'})
+                        company_location = location_element.text.strip() if location_element else 'Not specified'
+                        print(company_location)
+                        number_elements = about_soup.find_all('span', {'class': 'link-without-visited-state'})
+                        company_number = number_elements[2].text.strip() if len(number_elements) > 2 else 'Not specified'
+                        print(company_number)
                     else:
-                        companies_dict[company_name] = {
-                            'Company Name': company_name,
-                            'Industry': industry,
-                            'No of Employees': no_of_employees,
-                        }
+                        company_website = 'Not specified'
+                        company_location = 'Not specified'
+                        company_number = 'Not specified'
+
+                    driver.back()
+                    time.sleep(5)
+
+                    companies_dict[company_name] = {
+                        'Company Name': company_name,
+                        'Industry': industry,
+                        'No of Employees': no_of_employees,
+                        'Address': company_location,
+                        'Website': company_website,
+                        'Number': company_number
+                    }
 
                     print(f"Added company: {company_name}")
 
@@ -96,15 +138,39 @@ def scrape_companies(driver, companies_dict, max_pages=3):
                 continue
 
         save_to_csv(companies_dict, 'company_data.csv')
+        time.sleep(5)
         scroll_and_click_next(driver, wait)
 
 
 def save_to_csv(companies_dict, filename):
+    fieldnames = ['Company Name', 'Industry', 'No of Employees', 'Number', 'Website', 'Address']
+    existing_companies = {}
+
+    # Read existing company names into a dictionary
+    try:
+        with open(filename, mode='r', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                existing_companies[row['Company Name']] = row
+    except FileNotFoundError:
+        print(f"{filename} not found. A new file will be created.")
+
+    # Update existing companies and add new companies
+    for company_name, company_info in companies_dict.items():
+        if company_name in existing_companies:
+            existing_companies[company_name].update(company_info)
+            print(f"Updating company: {company_name}")
+        else:
+            existing_companies[company_name] = company_info
+            print(f"Adding new company: {company_name}")
+
+    # Write all data back to the CSV file
     with open(filename, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=['Company Name', 'Industry', 'No of Employees'])
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
-        for company_info in companies_dict.values():
+        for company_info in existing_companies.values():
             writer.writerow(company_info)
+
     print(f"Data has been written to {filename}")
 
 
@@ -128,6 +194,7 @@ def main():
     try:
         login(driver)
         scrape_companies(driver, companies_dict)
+        print("Done Scraping!")
     except TimeoutException as e:
         print(f"Timeout occurred: {e}")
     except NoSuchElementException as e:
