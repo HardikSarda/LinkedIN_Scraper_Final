@@ -1,7 +1,7 @@
 # LinkedIN_Scraper_Final
 
 Overview:
-The LinkedIn Company Scraper is a Python-based web scraping tool designed to automate the process of extracting company information from LinkedIn. It logs into LinkedIn using user credentials, navigates to the company search results, and extracts relevant data such as company names, industries, and the number of employees. The scraped data is stored in a CSV file for further analysis or usage.
+The LinkedIn Company Scraper is a Python-based web scraping tool designed to automate the process of extracting company information from LinkedIn. It logs into LinkedIn using user credentials, navigates to the company search results, and extracts relevant data such as company names, industries, the number of employees, Website, Phone number and adress. The scraped data is stored in a CSV file for further analysis or usage.
 
 Features
 -Automated Login: The scraper uses Selenium to log into LinkedIn with provided user credentials.
