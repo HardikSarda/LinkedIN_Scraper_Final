@@ -41,7 +41,7 @@ def login(driver):
 
 def search_url(driver):
     # Edit the search URL here
-    driver.get(const.SEARCH_URL_Manu)
+    driver.get(const.SEARCH_URL)
 
 
 def click_about_button(driver):
